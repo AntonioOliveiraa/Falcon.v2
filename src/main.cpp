@@ -2,12 +2,10 @@
 #include "Wire.h"
 #include "Adafruit_TCS34725.h"
 #include <Adafruit_Sensor.h>
-#include "Arduino.h"
 
 // Declaração dos pinos para o sensor ultrassônico
 #define trigPin 5      // Trigger do sensor ultrassônico
 #define echoPin 18     // Echo do sensor ultrassônico
-int distance;          // Distância medida pelo sensor ultrassônico
 
 // DIAMETRO RODA: 68mm
 
@@ -66,7 +64,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(PIN_A_ENCODER), countA, RISING);
   attachInterrupt(digitalPinToInterrupt(PIN_B_ENCODER), countB, RISING);
 
-}
+  }
 
 void loop() {
   motor1->enable();
@@ -116,7 +114,7 @@ void loop() {
   Serial.println(" ");
   delay(1000);
 
-  distance = readUltrasonic();
+  (readUltrasonic() <= 10) ? stopMove(motor1, motor2) : (void)0;
 }
 
 int readUltrasonic(){
