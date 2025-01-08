@@ -1,76 +1,132 @@
-#include <Arduino.h>
+#include "l298n.h"
+#include "Wire.h"
+#include "Adafruit_TCS34725.h"
 
-// Motor A
-int motor1Pin1 = 27;
-int motor1Pin2 = 26;
-int enable1Pin = 14;
+// DIAMETRO RODA: 68mm
 
-// Motor B
-int motor2Pin1 = 25;
-int motor2Pin2 = 33;
-int enable2Pin = 12;
+//Declaracao dos pinos conectados aos canais de saida do encoder
+const int PIN_A_ENCODER = 15;
+const int PIN_B_ENCODER = 4;
 
-// Setting PWM properties
-const int freq = 30000;
-const int pwmChannel = 0;
-const int resolution = 8;
-int dutyCycle = 200;
- 
+//Declaracao das variaveis auxiliares para a verificacao do do motor A
+int rpm_A = 0;
+int rpm_B = 0;
+unsigned long last_Calc_A = 0;
+unsigned long last_Calc_B = 0;
+
+//Declaracao das variaveis auxiliares para o calculo da velocidade
+unsigned long counterA = 0;
+unsigned long counterB = 0;
+
+//Variavel de numero de dentes do disco de leitura
+const int TEETH = 10;
+
+//Declaracao das variaveis auxiliares para a temporizacao de um minuto
+const long MINUTO = 60000;
+
+Motor * motor1 = new Motor(14, 25, 33, 0, 1, 100, LEFT);
+Motor * motor2 = new Motor(12, 27, 26, 2, 3, 100, RIGHT);
+
+/* Initialise with default values (int time = 2.4ms, gain = 1x) */
+// Adafruit_TCS34725 tcs = Adafruit_TCS34725();
+
+// Initialise with specific int time and gain values 
+// Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_600MS, TCS34725_GAIN_1X);
+
+//
 
 void setup() {
-  // sets the pins as outputs:
-  pinMode(motor1Pin1, OUTPUT);
-  pinMode(motor1Pin2, OUTPUT);
-  pinMode(enable1Pin, OUTPUT);
- 
-  // configure LED PWM functionalitites
-  ledcSetup(pwmChannel, freq, resolution);
-
-  // attach the channel to the GPIO to be controlled
-  ledcAttachPin(enable1Pin, pwmChannel);
-
+  // Init Serial
   Serial.begin(115200);
+  last_Calc_A = millis();
 
-  // testing
-  Serial.print("Testing DC Motor...");
+  // if (tcs.begin()) {
+  //   Serial.println("Found TCS34725 sensor");
+  // } else {
+  //   Serial.println("No TCS34725 found... check your connections");
+  //   while (1);
+  // }
+
+  // Inicializa as interrupcoes com os pinos configurados para chamar as funcoes  
+  attachInterrupt(digitalPinToInterrupt(PIN_A_ENCODER), countA, RISING);
+  attachInterrupt(digitalPinToInterrupt(PIN_B_ENCODER), countB, RISING);
+
 }
- 
 
 void loop() {
-  // Move the DC motor forward at maximum speed
-  Serial.println("Moving Forward");
-  digitalWrite(motor1Pin1, LOW);
-  digitalWrite(motor1Pin2, HIGH);
-  delay(2000);
-
-  // Stop the DC motor
-  Serial.println("Motor stopped");
-  digitalWrite(motor1Pin1, LOW);
-  digitalWrite(motor1Pin2, LOW);
+  /*motor1->enable();
+  motor2->enable();
+  delay(5000);
+  moveForward(motor1, motor2, 140);
+  delay(5000);
+  moveBackward(motor1, motor2, 140);
+  delay(5000);
+  stopMove(motor1, motor2);
   delay(1000);
+  Serial.println("Moving Motor 1 forward!");
+  motorRamp(motor1, 130, 255, FORWARDMODE, 30);
+  delay(5000);
+  motorRamp(motor1, 255, 130, FORWARDMODE, 30);
+  delay(5000);
+  Serial.println("Moving Motor 1 backward!");
+  motorRamp(motor1, 130, 255, BACKWARDMODE, 30);
+  delay(5000);
+  motorRamp(motor1, 255, 130, BACKWARDMODE, 30);
+  delay(15000);*/
 
-  // Move DC motor backwards at maximum speed
-  Serial.println("Moving Backwards");
-  digitalWrite(motor1Pin1, HIGH);
-  digitalWrite(motor1Pin2, LOW);
-  delay(2000);
+  /*Serial.println("Moving Motor 2 forward!");
+  motorRamp(motor2, 130, 255, FORWARDMODE, 30);
+  delay(3000);
+  motorRamp(motor2, 255, 130, FORWARDMODE, 30);
+  delay(3000);
+  Serial.println("Moving Motor 2 backward!");
+  motorRamp(motor2, 130, 255, BACKWARDMODE, 30);
+  delay(3000);
+  motorRamp(motor2, 255, 130, BACKWARDMODE, 30);*/
+  // uint16_t r, g, b, c, colorTemp, lux;
 
-  // Stop the DC motor
-  Serial.println("Motor stopped");
-  digitalWrite(motor1Pin1, LOW);
-  digitalWrite(motor1Pin2, LOW);
-  delay(1000);
+  // tcs.getRawData(&r, &g, &b, &c);
+  // colorTemp = tcs.calculateColorTemperature(r, g, b);
+  // lux = tcs.calculateLux(r, g, b);
 
-  // Move DC motor forward with increasing speed
-  digitalWrite(motor1Pin1, HIGH);
-  digitalWrite(motor1Pin2, LOW);
+  // Serial.print("Color Temp: "); Serial.print(colorTemp, DEC);
+  // Serial.print(" K - ");
+  // Serial.print("Lux: "); Serial.print(lux, DEC); Serial.print(" - ");
+  // Serial.print("R: "); Serial.print(r, DEC); Serial.print(" ");
+  // Serial.print("G: "); Serial.print(g, DEC); Serial.print(" ");
+  // Serial.print("B: "); Serial.print(b, DEC); Serial.print(" ");
+  // Serial.print("C: "); Serial.print(c, DEC); Serial.print(" ");
+  // Serial.println(" ");
+  delay(3000);
 
-  while (dutyCycle <= 255){
-    ledcWrite(pwmChannel, dutyCycle);  
-    Serial.print("Forward with duty cycle: ");
-    Serial.println(dutyCycle);
-    dutyCycle = dutyCycle + 5;
-    delay(500);
+}
+
+// Interrupt Function
+void countA() {
+  //Incrementa o contador
+  counterA++;
+  if((counterA % TEETH) == 0){
+    rpm_A = (MINUTO / (millis() - last_Calc_A));
+    last_Calc_A = millis();
+    counterA = 0;
+    Serial.print("Duty Cycle A: ");
+    Serial.println(motor1->getDutyCycle());
+    Serial.print("RPM A: ");
+    Serial.println(rpm_A);
   }
-  dutyCycle = 200;
+}
+
+// Interrupt Function
+void countB() {
+  //Incrementa o contador
+  counterB++;
+  if((counterB % TEETH) == 0){
+    rpm_B = (MINUTO / (millis() - last_Calc_B));
+    last_Calc_B = millis();
+    counterB = 0;
+    Serial.print("Duty Cycle B: ");
+    Serial.println(motor2->getDutyCycle());
+    Serial.print("RPM B: ");
+    Serial.println(rpm_B);
+  }
 }
